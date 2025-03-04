@@ -303,7 +303,7 @@ export default function CharacterDesigner() {
         />
 
         {/* Logo in top-left corner */}
-        <div className="absolute top-4 left-4 w-8 h-8">
+        <div className="absolute top-4 left-4 w-12 h-12">
           <Logo />
         </div>
 
