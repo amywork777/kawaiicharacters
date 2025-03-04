@@ -1,15 +1,12 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { Canvas } from "@react-three/fiber"
-import { OrbitControls, Environment, Stars } from "@react-three/drei"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { SparklesIcon, Shuffle, RotateCcw, Download, Heart, Camera, Wand2 } from "lucide-react"
-import Character from "@/components/character"
 import ColorPicker from "@/components/color-picker"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -18,6 +15,17 @@ import { createGIF } from "gifshot"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import type * as THREE from "three"
 import Logo from "@/components/logo"
+import dynamic from "next/dynamic"
+
+// Dynamically import the ThreeViewer component with no SSR
+const ThreeViewer = dynamic(() => import("./three-viewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center">
+      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
+    </div>
+  ),
+})
 
 // Define the character parts and colors
 const BODY_TYPES = ["round", "square", "bean", "pear"]
@@ -46,6 +54,11 @@ const COLORS = [
   "#F0F8FF", // alice blue
   "#F5F5F5", // white smoke
 ]
+
+// Add a helper type for the Three.js viewer ref
+type ThreeViewerRef = {
+  takeScreenshot: () => string | null;
+};
 
 export default function CharacterDesigner() {
   const [bodyType, setBodyType] = useState("round")
@@ -76,6 +89,9 @@ export default function CharacterDesigner() {
 
   // Auto-match head and body colors when toggled
   const [matchColors, setMatchColors] = useState(false)
+
+  // Create a ref for the Three.js viewer
+  const threeViewerRef = useRef<ThreeViewerRef>(null);
 
   useEffect(() => {
     if (matchColors) {
@@ -190,16 +206,39 @@ export default function CharacterDesigner() {
   }, [])
 
   const captureImage = useCallback(async () => {
-    const canvas = document.querySelector("canvas")
-    if (!canvas) return
-
-    // Create a high-resolution PNG
-    const dataUrl = canvas.toDataURL("image/png", 1.0)
-    const link = document.createElement("a")
-    link.download = "my-kawaii-character.png"
-    link.href = dataUrl
-    link.click()
-  }, [])
+    // Use our new function to capture the image
+    if (threeViewerRef.current) {
+      try {
+        const dataUrl = threeViewerRef.current.takeScreenshot();
+        
+        if (!dataUrl) {
+          console.error("Failed to capture screenshot");
+          alert("Failed to save image. Please try again.");
+          return;
+        }
+        
+        // Create and trigger download
+        const link = document.createElement("a");
+        link.download = "my-kawaii-character.png";
+        link.href = dataUrl;
+        document.body.appendChild(link); // Required for Firefox
+        link.click();
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(link);
+        }, 100);
+        
+        console.log("PNG captured and download initiated");
+      } catch (error) {
+        console.error("Error capturing PNG:", error);
+        alert("There was an issue saving your character as PNG. Please try again.");
+      }
+    } else {
+      console.error("Three.js viewer reference not available");
+      alert("Could not access the 3D scene. Please try again.");
+    }
+  }, [threeViewerRef]);
 
   // Modify the download options
   const downloadOptions = [
@@ -238,42 +277,30 @@ export default function CharacterDesigner() {
 
   return (
     <div className="w-full h-screen flex flex-row bg-white overflow-hidden">
-      {/* 3D Viewer */}
+      {/* 3D Viewer - Pass the reference */}
       <div className="w-2/3 h-full relative">
-        <Canvas camera={{ position: [0, 0, 5], fov: 50 }}>
-          <color attach="background" args={[backgroundColor]} />
-          <ambientLight intensity={0.5} />
-          <spotLight position={[10, 10, 10]} angle={0.15} penumbra={1} />
-          <Character
-            bodyType={bodyType}
-            headType={headType}
-            accessoryType={accessoryType}
-            mouthType={mouthType}
-            pose={pose}
-            pattern={pattern}
-            bodyColor={bodyColor}
-            headColor={headColor}
-            accessoryColor={accessoryColor}
-            patternColor={patternColor}
-            blushIntensity={blushIntensity}
-            eyeSize={eyeSize}
-            eyeDistance={eyeDistance}
-            mouthSize={mouthSize}
-            hasEyebrows={hasEyebrows}
-            hasFreckles={hasFreckles}
-            hasSparkles={hasSparkles}
-            armType={armType}
-          />
-          <OrbitControls
-            enablePan={false}
-            minDistance={3}
-            maxDistance={8}
-            minPolarAngle={Math.PI / 6}
-            maxPolarAngle={Math.PI / 2}
-          />
-          <Environment preset="studio" />
-          {showStars && <Stars radius={100} depth={50} count={5000} factor={4} saturation={0} fade speed={1} />}
-        </Canvas>
+        <ThreeViewer
+          threeRef={threeViewerRef}
+          backgroundColor={backgroundColor}
+          bodyType={bodyType}
+          headType={headType}
+          accessoryType={accessoryType}
+          mouthType={mouthType}
+          pose={pose}
+          pattern={pattern}
+          bodyColor={bodyColor}
+          headColor={headColor}
+          accessoryColor={accessoryColor}
+          patternColor={patternColor}
+          blushIntensity={blushIntensity}
+          eyeSize={eyeSize}
+          eyeDistance={eyeDistance}
+          mouthSize={mouthSize}
+          hasEyebrows={hasEyebrows}
+          hasFreckles={hasFreckles}
+          hasSparkles={hasSparkles}
+          armType={armType}
+        />
 
         {/* Logo in top-left corner */}
         <div className="absolute top-4 left-4 w-8 h-8">
